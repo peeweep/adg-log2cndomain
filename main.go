@@ -10,26 +10,14 @@ import (
 	"strings"
 )
 
-type LogEntry struct {
-	T        string `json:"T"`
-	QH       string `json:"QH"`
-	QT       string `json:"QT"`
-	QC       string `json:"QC"`
-	CP       string `json:"CP"`
-	Answer   string `json:"Answer"`
-	Result   Result `json:"Result"`
-	Upstream string `json:"Upstream"`
-	IP       string `json:"IP"`
-	Elapsed  int    `json:"Elapsed"`
+// adguard home querylog.json
+type AdgQuery struct {
+	QH     string `json:"QH"`
+	QT     string `json:"QT"`
+	Answer string `json:"Answer"`
 }
 
 type Result struct{}
-
-//var geoip.data geoipDb  = geoip.FromFile("/home/peeweep/.geo/geoip.dat")
-
-//var db *geoip.Database
-//db, err = geoip.FromFile(filePath)
-//fmt.Println(geoipDat.LookupCode(net.IP(ipAddr)))
 
 func main() {
 
@@ -54,13 +42,13 @@ func main() {
 
 	// 遍历每个条目并解析
 	for i, entry := range entries {
-		var logEntry LogEntry
-		err := json.Unmarshal([]byte(entry), &logEntry)
+		var adgQuery AdgQuery
+		err := json.Unmarshal([]byte(entry), &adgQuery)
 		if err != nil {
 			fmt.Printf("解析第 %d 条JSON时出错: %s\n", i+1, err)
 		} else {
 			// base64 decode Answer
-			decodedBytes, err := base64.StdEncoding.DecodeString(logEntry.Answer)
+			decodedBytes, err := base64.StdEncoding.DecodeString(adgQuery.Answer)
 			if err != nil {
 				fmt.Println("解码时出错:", err)
 				return
