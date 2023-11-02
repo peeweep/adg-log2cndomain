@@ -4,8 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/metacubex/geo/geoip"
 	"github.com/metacubex/geo/geosite"
 	"github.com/miekg/dns"
+	"net"
 	"os"
 	"strings"
 )
@@ -21,10 +23,19 @@ type Result struct{}
 
 func main() {
 
+	// geosite db
 	geositeFilePath := "/home/peeweep/.geo/geosite.dat"
-	db, err := geosite.FromFile(geositeFilePath)
+	geositeDb, err := geosite.FromFile(geositeFilePath)
 	if err != nil {
 		fmt.Println("Error when loading", geositeFilePath, "as a GeoSite database, skipped.")
+		return
+	}
+
+	// geoip db
+	geoipFilePath := "/home/peeweep/.geo/geoip.dat"
+	geoipDb, err := geoip.FromFile(geoipFilePath)
+	if err != nil {
+		fmt.Println("Error when loading", geoipFilePath, "as a GeoIP database, skipped.")
 		return
 	}
 
@@ -61,12 +72,10 @@ func main() {
 			}
 
 			// check question is in geosite:cn
-			newDomains := checkGeosite(msg, db, domains)
+			newDomain, isNewDomain := checkGeosite(msg, geositeDb, domains)
 			// update domains or skip
-			if len(newDomains) == len(domains) {
+			if !isNewDomain {
 				continue
-			} else {
-				domains = newDomains
 			}
 
 			// answer
@@ -77,16 +86,31 @@ func main() {
 						answer.String(),
 						answer.Header().String())
 
-					domainAnswerName := strings.TrimSuffix(answer.Header().Name, ".")
+					isCNCode := isGeoipCode(geoipDb, net.ParseIP(ipAddr), "cn")
+					if isCNCode {
+						//domainAnswerName := strings.TrimSuffix(answer.Header().Name, ".")
+						//fmt.Printf("Answer: %s %s\n", domainAnswerName, ipAddr)
+						domains = appendDomain(domains, newDomain)
+						//fmt.Printf("Answer: %s %s\n", newDomain, ipAddr)
 
-					fmt.Printf("Answer: %s %s\n", domainAnswerName, ipAddr)
+					}
 				}
 			}
 
 		}
 	}
 	fmt.Println(domains)
+}
 
+func appendDomain(domains []string, newDomain string) []string {
+	for _, domain := range domains {
+		if domain == newDomain {
+			return domains
+		}
+	}
+	fmt.Printf("newDomain: %s\n", newDomain)
+
+	return append(domains, newDomain)
 }
 
 func splitJSON(jsonData string) []string {
@@ -107,10 +131,10 @@ func splitJSON(jsonData string) []string {
 }
 
 // is already in geosite:cn
-func isGeositeCN(db *geosite.Database, domain string) bool {
+func isGeositeCode(db *geosite.Database, domain string, code string) bool {
 	codes := db.LookupCodes(domain)
 	for i := range codes {
-		if codes[i] == "cn" {
+		if codes[i] == code {
 			return true
 		}
 	}
@@ -118,22 +142,47 @@ func isGeositeCN(db *geosite.Database, domain string) bool {
 }
 
 // parse geosite
-func checkGeosite(msg *dns.Msg, db *geosite.Database, domains []string) []string {
+func checkGeosite(msg *dns.Msg, db *geosite.Database, domains []string) (string, bool) {
 
 	// question
 	for _, question := range msg.Question {
 		if question.Qtype == dns.TypeA {
 			domainQuestionName := strings.TrimSuffix(question.Name, ".")
-			fmt.Println("check domain:  ", domainQuestionName)
-			//fmt.Printf("Question: %s %s\n", domainQuestionName, dns.Type(question.Qtype).String())
+			//fmt.Println("check domain:  ", domainQuestionName)
 
-			if !isGeositeCN(db, domainQuestionName) {
-				domains = append(domains, domainQuestionName)
-				fmt.Println("add domain: ", domainQuestionName)
-				return domains
+			for len(db.LookupCodes(domainQuestionName)) == 0 {
+				return "", false
+			}
+
+			isGFWCode := isGeositeCode(db, domainQuestionName, "gfw")
+			isPrivateCode := isGeositeCode(db, domainQuestionName, "private")
+			if isPrivateCode || isGFWCode {
+				return "", false
+			}
+
+			// 不知为何，很多 geosite:google@cn 的域名不在 geosite:cn 里
+			isGoogleCode := isGeositeCode(db, domainQuestionName, "google")
+			if isGoogleCode {
+				return "", false
+			}
+
+			isCNCode := isGeositeCode(db, domainQuestionName, "cn")
+			if !isCNCode {
+				//fmt.Println("add domain: ", domainQuestionName)
+				return domainQuestionName, true
 			}
 		}
 	}
-	return domains
+	return "", false
+}
 
+// is already in geoip
+func isGeoipCode(db *geoip.Database, ip net.IP, code string) bool {
+	codes := db.LookupCode(ip)
+	for i := range codes {
+		if codes[i] == code {
+			return true
+		}
+	}
+	return false
 }

@@ -1,3 +1,4 @@
+*.dat
 .idea
-querylog.json.*
+querylog.json*
 
