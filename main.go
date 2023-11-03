@@ -86,8 +86,8 @@ func main() {
 						answer.String(),
 						answer.Header().String())
 
-					isCNCode := isGeoipCode(geoipDb, net.ParseIP(ipAddr), "cn")
-					if isCNCode {
+					isGeoipCN := isGeoipCode(geoipDb, net.ParseIP(ipAddr), "cn")
+					if isGeoipCN {
 						//domainAnswerName := strings.TrimSuffix(answer.Header().Name, ".")
 						//fmt.Printf("Answer: %s %s\n", domainAnswerName, ipAddr)
 						domains = appendDomain(domains, newDomain)
@@ -130,7 +130,7 @@ func splitJSON(jsonData string) []string {
 	return entries
 }
 
-// is already in geosite:cn
+// domain is already in geosite:code
 func isGeositeCode(db *geosite.Database, domain string, code string) bool {
 	codes := db.LookupCodes(domain)
 	for i := range codes {
@@ -154,29 +154,25 @@ func checkGeosite(msg *dns.Msg, db *geosite.Database, domains []string) (string,
 				return "", false
 			}
 
-			isGFWCode := isGeositeCode(db, domainQuestionName, "gfw")
-			isPrivateCode := isGeositeCode(db, domainQuestionName, "private")
-			if isPrivateCode || isGFWCode {
-				return "", false
+			excludeCodes := []string{"cn", "gfw", "google", "private"}
+			for _, code := range excludeCodes {
+				if isGeositeCode(db, domainQuestionName, code) {
+					return "", false
+				}
 			}
-
-			// 不知为何，很多 geosite:google@cn 的域名不在 geosite:cn 里
-			isGoogleCode := isGeositeCode(db, domainQuestionName, "google")
-			if isGoogleCode {
-				return "", false
+			excludeDomains := []string{"gnupg.uk", "bing.com"}
+			for _, domain := range excludeDomains {
+				if strings.HasSuffix(domainQuestionName, domain) {
+					return "", false
+				}
 			}
-
-			isCNCode := isGeositeCode(db, domainQuestionName, "cn")
-			if !isCNCode {
-				//fmt.Println("add domain: ", domainQuestionName)
-				return domainQuestionName, true
-			}
+			return domainQuestionName, true
 		}
 	}
 	return "", false
 }
 
-// is already in geoip
+// ip is already in geoip:code
 func isGeoipCode(db *geoip.Database, ip net.IP, code string) bool {
 	codes := db.LookupCode(ip)
 	for i := range codes {
