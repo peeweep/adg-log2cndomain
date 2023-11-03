@@ -24,7 +24,7 @@ type AdgQueryJson struct {
 type ConfigYaml struct {
 	Adguardhome struct {
 		QuerylogJson string `yaml:"querylogjson"`
-	}
+	} `yaml:"adguardhome"`
 	Geosite struct {
 		File           string   `yaml:"file"`
 		ExcludeCodes   []string `yaml:"excludeCodes"`
