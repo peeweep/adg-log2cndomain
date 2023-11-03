@@ -5,6 +5,7 @@ go 1.21.3
 require (
 	github.com/metacubex/geo v0.0.0-20230810094848-a465d708c02b
 	github.com/miekg/dns v1.1.56
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

@@ -1,0 +1,9 @@
+adguardhome:
+  querylogjson: "querylog.json"
+geosite:
+  file: "geosite.dat"
+  excludeCodes: [ "cn" , "gfw", "private", "google" ]
+  excludeDomains: [ "gnupg.uk", "bing.com", "bing.net" ]
+geoip:
+  file: "geoip.dat"
+  includeCodes: [ "cn" ]

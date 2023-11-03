@@ -7,24 +7,55 @@ import (
 	"github.com/metacubex/geo/geoip"
 	"github.com/metacubex/geo/geosite"
 	"github.com/miekg/dns"
+	"gopkg.in/yaml.v3"
 	"net"
 	"os"
 	"strings"
 )
 
 // adguard home querylog.json
-type AdgQuery struct {
+type AdgQueryJson struct {
 	QH     string `json:"QH"`
 	QT     string `json:"QT"`
 	Answer string `json:"Answer"`
 }
 
+// config.yaml
+type ConfigYaml struct {
+	Adguardhome struct {
+		QuerylogJson string `yaml:"querylogjson"`
+	}
+	Geosite struct {
+		File           string   `yaml:"file"`
+		ExcludeCodes   []string `yaml:"excludeCodes"`
+		ExcludeDomains []string `yaml:"excludeDomains"`
+	} `yaml:"geosite"`
+	Geoip struct {
+		File         string   `yaml:"file"`
+		IncludeCodes []string `yaml:"includeCodes"`
+	} `yaml:"geoip"`
+}
+
 type Result struct{}
 
 func main() {
+	// 读取 YAML 文件
+	yamlFile, err := os.ReadFile("config.yaml")
+	if err != nil {
+		fmt.Println("Error when loading", yamlFile)
+		return
+	}
+
+	// 解析 YAML 文件
+	var config ConfigYaml
+	err = yaml.Unmarshal(yamlFile, &config)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	// geosite db
-	geositeFilePath := "/home/peeweep/.geo/geosite.dat"
+	geositeFilePath := config.Geosite.File
 	geositeDb, err := geosite.FromFile(geositeFilePath)
 	if err != nil {
 		fmt.Println("Error when loading", geositeFilePath, "as a GeoSite database, skipped.")
@@ -32,7 +63,7 @@ func main() {
 	}
 
 	// geoip db
-	geoipFilePath := "/home/peeweep/.geo/geoip.dat"
+	geoipFilePath := config.Geoip.File
 	geoipDb, err := geoip.FromFile(geoipFilePath)
 	if err != nil {
 		fmt.Println("Error when loading", geoipFilePath, "as a GeoIP database, skipped.")
@@ -40,7 +71,7 @@ func main() {
 	}
 
 	// 将JSON数据分割成多个条目
-	jsonFile := "querylog.json"
+	jsonFile := config.Adguardhome.QuerylogJson
 	fileContent, err := os.ReadFile(jsonFile)
 	if err != nil {
 		fmt.Println("Error when loading", jsonFile)
@@ -53,7 +84,7 @@ func main() {
 
 	// 遍历每个条目并解析
 	for i, entry := range entries {
-		var adgQuery AdgQuery
+		var adgQuery AdgQueryJson
 		err := json.Unmarshal([]byte(entry), &adgQuery)
 		if err != nil {
 			fmt.Printf("解析第 %d 条JSON时出错: %s\n", i+1, err)
@@ -72,7 +103,8 @@ func main() {
 			}
 
 			// check question is in geosite:cn
-			newDomain, isNewDomain := checkGeosite(msg, geositeDb, domains)
+			newDomain, isNewDomain := checkGeosite(msg, geositeDb, domains,
+				config.Geosite.ExcludeCodes, config.Geosite.ExcludeDomains)
 			// update domains or skip
 			if !isNewDomain {
 				continue
@@ -86,20 +118,18 @@ func main() {
 						answer.String(),
 						answer.Header().String())
 
-					isGeoipCN := isGeoipCode(geoipDb, net.ParseIP(ipAddr), "cn")
-					if isGeoipCN {
-						//domainAnswerName := strings.TrimSuffix(answer.Header().Name, ".")
-						//fmt.Printf("Answer: %s %s\n", domainAnswerName, ipAddr)
-						domains = appendDomain(domains, newDomain)
-						//fmt.Printf("Answer: %s %s\n", newDomain, ipAddr)
+					ipNetAddr := net.ParseIP(ipAddr)
 
+					for _, code := range config.Geoip.IncludeCodes {
+						if isGeoipCode(geoipDb, ipNetAddr, code) {
+							domains = appendDomain(domains, newDomain)
+						}
 					}
 				}
 			}
-
 		}
 	}
-	fmt.Println(domains)
+	//fmt.Println(domains)
 }
 
 func appendDomain(domains []string, newDomain string) []string {
@@ -108,7 +138,8 @@ func appendDomain(domains []string, newDomain string) []string {
 			return domains
 		}
 	}
-	fmt.Printf("newDomain: %s\n", newDomain)
+	//fmt.Printf("newDomain: %s\n", newDomain)
+	fmt.Println(newDomain)
 
 	return append(domains, newDomain)
 }
@@ -142,7 +173,7 @@ func isGeositeCode(db *geosite.Database, domain string, code string) bool {
 }
 
 // parse geosite
-func checkGeosite(msg *dns.Msg, db *geosite.Database, domains []string) (string, bool) {
+func checkGeosite(msg *dns.Msg, db *geosite.Database, domains []string, excludeCodes []string, excludeDomains []string) (string, bool) {
 
 	// question
 	for _, question := range msg.Question {
@@ -154,13 +185,11 @@ func checkGeosite(msg *dns.Msg, db *geosite.Database, domains []string) (string,
 				return "", false
 			}
 
-			excludeCodes := []string{"cn", "gfw", "google", "private"}
 			for _, code := range excludeCodes {
 				if isGeositeCode(db, domainQuestionName, code) {
 					return "", false
 				}
 			}
-			excludeDomains := []string{"gnupg.uk", "bing.com"}
 			for _, domain := range excludeDomains {
 				if strings.HasSuffix(domainQuestionName, domain) {
 					return "", false
