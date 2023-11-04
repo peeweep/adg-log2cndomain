@@ -181,10 +181,6 @@ func checkGeosite(msg *dns.Msg, db *geosite.Database, domains []string, excludeC
 			domainQuestionName := strings.TrimSuffix(question.Name, ".")
 			//fmt.Println("check domain:  ", domainQuestionName)
 
-			for len(db.LookupCodes(domainQuestionName)) == 0 {
-				return "", false
-			}
-
 			for _, code := range excludeCodes {
 				if isGeositeCode(db, domainQuestionName, code) {
 					return "", false
