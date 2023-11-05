@@ -1,4 +1,5 @@
 *.dat
 .idea
-querylog.json*
+config.yaml
+querylog.json
 
