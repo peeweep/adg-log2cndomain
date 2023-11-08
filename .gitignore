@@ -2,4 +2,5 @@
 .idea
 config.yaml
 querylog.json
-
+bin.tar.gz
+bin/
