@@ -58,6 +58,11 @@ func main() {
 		return
 	}
 
+	if config.Output.File == "" {
+		fmt.Println("You must set the output.file")
+		return
+	}
+
 	// geosite db
 	geositeFilePath := config.Geosite.File
 	geositeDb, err := geosite.FromFile(geositeFilePath)
