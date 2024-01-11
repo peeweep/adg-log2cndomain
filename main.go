@@ -35,6 +35,9 @@ type ConfigYaml struct {
 		IncludeCodes []string `yaml:"includeCodes"`
 		ExcludeCodes []string `yaml:"excludeCodes"`
 	} `yaml:"geoip"`
+	Output struct {
+		File string `yaml:"file"`
+	} `yaml:"output"`
 }
 
 type Result struct{}
@@ -142,7 +145,12 @@ func main() {
 			}
 		}
 	}
-	//fmt.Println(domains)
+	err = os.WriteFile(config.Output.File, []byte(strings.Join(domains, "\n")+"\n"), 0644)
+	if err != nil {
+		fmt.Println("Failed to save file:", err)
+		return
+	}
+	fmt.Println("Save domains to", config.Output.File)
 }
 
 func appendDomain(domains []string, newDomain string) []string {
@@ -152,7 +160,6 @@ func appendDomain(domains []string, newDomain string) []string {
 		}
 	}
 	//fmt.Printf("newDomain: %s\n", newDomain)
-	fmt.Println(newDomain)
 
 	return append(domains, newDomain)
 }

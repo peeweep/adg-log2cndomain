@@ -8,3 +8,5 @@ geoip:
   file: "geoip.dat"
   excludeCodes: [ "cloudie" ]
   includeCodes: [ "cn" ]
+output:
+  file: "domains.txt"
