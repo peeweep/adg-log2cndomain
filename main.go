@@ -33,6 +33,7 @@ type ConfigYaml struct {
 	Geoip struct {
 		File         string   `yaml:"file"`
 		IncludeCodes []string `yaml:"includeCodes"`
+		ExcludeCodes []string `yaml:"excludeCodes"`
 	} `yaml:"geoip"`
 }
 
@@ -120,8 +121,20 @@ func main() {
 
 					ipNetAddr := net.ParseIP(ipAddr)
 
-					for _, code := range config.Geoip.IncludeCodes {
-						if isGeoipCode(geoipDb, ipNetAddr, code) {
+					for _, includeCode := range config.Geoip.IncludeCodes {
+						if isGeoipCode(geoipDb, ipNetAddr, includeCode) == false {
+							continue
+						}
+						isExcludeCode := false
+						if len(config.Geoip.ExcludeCodes) > 0 {
+							for _, excludeCode := range config.Geoip.ExcludeCodes {
+								if isGeoipCode(geoipDb, ipNetAddr, excludeCode) == true {
+									isExcludeCode = true
+									break
+								}
+							}
+						}
+						if isExcludeCode == false {
 							domains = appendDomain(domains, newDomain)
 						}
 					}

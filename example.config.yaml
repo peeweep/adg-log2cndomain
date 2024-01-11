@@ -6,4 +6,5 @@ geosite:
   excludeDomains: [ "gnupg.uk", "bing.com", "bing.net" ]
 geoip:
   file: "geoip.dat"
+  excludeCodes: [ "cloudie" ]
   includeCodes: [ "cn" ]
