@@ -4,13 +4,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/metacubex/geo/geoip"
+	"net"
+	"net/netip"
+	"os"
+	"strings"
+
+	"github.com/IrineSistiana/mosdns/v4/pkg/matcher/netlist"
 	"github.com/metacubex/geo/geosite"
 	"github.com/miekg/dns"
 	"gopkg.in/yaml.v3"
-	"net"
-	"os"
-	"strings"
 )
 
 // adguard home querylog.json
@@ -71,14 +73,6 @@ func main() {
 		return
 	}
 
-	// geoip db
-	geoipFilePath := config.Geoip.File
-	geoipDb, err := geoip.FromFile(geoipFilePath)
-	if err != nil {
-		fmt.Println("Error when loading", geoipFilePath, "as a GeoIP database, skipped.")
-		return
-	}
-
 	// 将JSON数据分割成多个条目
 	jsonFile := config.Adguardhome.QuerylogJson
 	fileContent, err := os.ReadFile(jsonFile)
@@ -130,13 +124,13 @@ func main() {
 					ipNetAddr := net.ParseIP(ipAddr)
 
 					for _, includeCode := range config.Geoip.IncludeCodes {
-						if isGeoipCode(geoipDb, ipNetAddr, includeCode) == false {
+						if isGeoipCode(config.Geoip.File, ipNetAddr, includeCode) == false {
 							continue
 						}
 						isExcludeCode := false
 						if len(config.Geoip.ExcludeCodes) > 0 {
 							for _, excludeCode := range config.Geoip.ExcludeCodes {
-								if isGeoipCode(geoipDb, ipNetAddr, excludeCode) == true {
+								if isGeoipCode(config.Geoip.File, ipNetAddr, excludeCode) == true {
 									isExcludeCode = true
 									break
 								}
@@ -223,12 +217,27 @@ func checkGeosite(msg *dns.Msg, db *geosite.Database, domains []string, excludeC
 }
 
 // ip is already in geoip:code
-func isGeoipCode(db *geoip.Database, ip net.IP, code string) bool {
-	codes := db.LookupCode(ip)
-	for i := range codes {
-		if codes[i] == code {
-			return true
-		}
+func isGeoipCode(filename string, ip net.IP, code string) bool {
+
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		fmt.Errorf("%v\n", err)
+		return false
 	}
-	return false
+	geoIPList, err := netlist.ParseV2rayIPDat(b, code)
+	if err != nil {
+		fmt.Errorf("%v\n", err)
+		return false
+	}
+	ipAddr, err := netip.ParseAddr(ip.String())
+	if err != nil {
+		fmt.Errorf("%v\n", err)
+		return false
+	}
+	isMatched, err := geoIPList.Match(ipAddr)
+	if err != nil {
+		fmt.Errorf("%v\n", err)
+		return false
+	}
+	return isMatched
 }
