@@ -137,7 +137,7 @@ func main() {
 							}
 						}
 						if isExcludeCode == false {
-							domains = appendDomain(domains, newDomain)
+							domains = appendDomain(domains, strings.ToLower(newDomain))
 						}
 					}
 				}
